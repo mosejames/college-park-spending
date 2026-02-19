@@ -113,7 +113,15 @@
   .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
   .filter-pill { padding: 6px 16px; border-radius: 20px; border: 2px solid var(--gray2); background: white; cursor: pointer; font-size: 0.82rem; font-weight: 600; transition: all 0.15s; color: var(--text2); }
   .filter-pill.active, .filter-pill:hover { background: var(--navy); color: white; border-color: var(--navy); }
-
+  /* SORT CONTROLS */
+  .sort-row { padding: 8px 20px; display: flex; align-items: center; gap: 6px; background: #f8fafc; border-bottom: 1px solid var(--gray2); flex-wrap: wrap; }
+  .sort-row label { font-size: 0.75rem; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; margin-right: 4px; }
+  .sort-pill { padding: 4px 12px; border-radius: 14px; border: 1.5px solid var(--gray2); background: white; cursor: pointer; font-size: 0.78rem; font-weight: 600; color: var(--text2); transition: all 0.15s; }
+  .sort-pill.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .sort-pill:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+  .sortable-col { cursor: pointer; user-select: none; white-space: nowrap; }
+  .sortable-col:hover { color: var(--accent); }
+  .sort-icon { font-size: 0.7rem; margin-left: 2px; opacity: 0.7; }
   /* TABLE */
   .table-wrap { background: white; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden; }
   .table-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--gray2); }
@@ -228,7 +236,7 @@
 
 <div class="section" id="sec-ward">
   <div class="section-header">
-    <button class="back-btn" onclick="showOverview()">← All Wards</button>
+    <button class="back-btn" onclick="navTo('')">← All Wards</button>
     <h2 id="ward-detail-title">Ward Detail</h2>
   </div>
   <div class="gauge-row" id="ward-gauges"></div>
@@ -248,9 +256,17 @@
       <div class="table-title-row">Transaction Detail Records</div>
       <input class="search-box" type="text" id="ward-search" placeholder="Search vendor or description…" oninput="renderWardTable()">
     </div>
+    <div class="sort-row" id="sort-controls"></div>
     <div style="overflow-x:auto">
       <table>
-        <thead><tr><th>Date</th><th>Fund</th><th>Vendor</th><th>Description</th><th>Payment</th><th style="text-align:right">Amount</th></tr></thead>
+        <thead><tr>
+          <th class="sortable-col" onclick="setTableSort('date-desc','date-asc')" id="col-date">Date <span class="sort-icon" id="sort-icon-date">↓</span></th>
+          <th>Fund</th>
+          <th class="sortable-col" onclick="setTableSort('vendor-az','vendor-az')" id="col-vendor">Vendor <span class="sort-icon" id="sort-icon-vendor"></span></th>
+          <th>Description</th>
+          <th>Payment</th>
+          <th class="sortable-col" style="text-align:right" onclick="setTableSort('amount-asc','amount-desc')" id="col-amount">Amount <span class="sort-icon" id="sort-icon-amount"></span></th>
+        </tr></thead>
         <tbody id="ward-table-body"></tbody>
       </table>
     </div>
@@ -335,7 +351,7 @@ function mkChart(id, cfg) {
   charts[id] = new Chart(document.getElementById(id).getContext('2d'), cfg);
 }
 
-let currentWard = null, wardFilter = 'All';
+let currentWard = null, wardFilter = 'All', tableSort = 'date-desc';
 
 function showSection(id) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -347,6 +363,7 @@ function showOverview() {
   showSection('overview');
   document.getElementById('breadcrumb').innerHTML = '<span style="color:rgba(255,255,255,0.5)">All Wards Overview</span>';
   buildOverview();
+  window.scrollTo({top: 0, behavior: 'instant'});
 }
 
 function showWard(ward) {
@@ -355,7 +372,7 @@ function showWard(ward) {
   showSection('ward');
   const color = WARD_COLORS[ward];
   document.getElementById('breadcrumb').innerHTML =
-    '<span onclick="showOverview()">All Wards Overview</span><span class="sep">/</span><span style="color:white">'+ward+'</span>';
+    '<span style="cursor:pointer" onclick="navTo(\'\')">All Wards Overview</span><span class="sep">/</span><span style="color:white">'+ward+'</span>';
   const wperson = WARD_PERSONS[ward] || '';
   const wrole = WARD_TITLES[ward] || '';
   const wphoto = WARD_PHOTOS[ward] || '';
@@ -369,7 +386,25 @@ function showWard(ward) {
        </div>`
     : '<span class="ward-dot" style="background:'+color+'"></span> '+ward+' Enhancement Fund';
   buildWardDetail(ward);
+  window.scrollTo({top: 0, behavior: 'instant'});
 }
+
+// ─── HASH ROUTING ─────────────────────────────────────────
+function navTo(hash) {
+  // Push a new history entry so the browser Back button returns to the previous view
+  window.location.hash = hash ? encodeURIComponent(hash) : '';
+}
+
+function routeFromHash() {
+  const raw = decodeURIComponent(window.location.hash.replace(/^#/, ''));
+  if (raw.startsWith('ward/')) {
+    const ward = raw.slice(5);
+    if (WARDS.includes(ward)) { showWard(ward); return; }
+  }
+  showOverview();
+}
+
+window.addEventListener('hashchange', routeFromHash);
 
 // ─── OVERVIEW ──────────────────────────────────────────────
 function buildOverview() {
@@ -429,7 +464,7 @@ function buildWardCards() {
     const photo = WARD_PHOTOS[ward] || '';
     const person = WARD_PERSONS[ward] || '';
     const role = WARD_TITLES[ward] || '';
-    return `<div class="ward-card" style="--card-color:${color}" onclick="showWard('${ward}')">
+    return `<div class="ward-card" style="--card-color:${color}" onclick="navTo('ward/${ward}')">
       ${photo ? `<img class="ward-card-photo" src="${photo}" alt="${person}">` : ''}
       ${person ? `<div class="ward-card-person">${person}</div><div class="ward-card-role">${role} · ${ward}</div>` : `<div class="ward-card-title">${ward}</div>`}
       <div class="ward-card-amount">${fmt(total)}</div>
@@ -529,13 +564,52 @@ function buildWardFilters(ward) {
 
 function setWardFilter(f) { wardFilter=f; document.querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('active')); event.target.classList.add('active'); renderWardTable(); }
 
+// Sort: 'date-desc'|'date-asc'|'vendor-az'|'amount-asc'|'amount-desc'
+function setTableSort(ascending, descending) {
+  // Toggle between asc/desc if already on this column, otherwise set ascending
+  if (tableSort === ascending) { tableSort = descending; }
+  else if (tableSort === descending) { tableSort = ascending; }
+  else { tableSort = ascending; }
+  renderWardTable();
+}
+
+const SORT_LABELS = {
+  'date-desc':   'Date ↓',
+  'date-asc':    'Date ↑',
+  'vendor-az':   'Vendor A–Z',
+  'amount-asc':  'Amount ↑',
+  'amount-desc': 'Amount ↓'
+};
+
+function renderSortControls() {
+  const sortOptions = [
+    {key:'date-desc', label:'Date ↓'},
+    {key:'date-asc',  label:'Date ↑'},
+    {key:'vendor-az', label:'Vendor A–Z'},
+    {key:'amount-asc', label:'Amount: Low → High'},
+    {key:'amount-desc',label:'Amount: High → Low'},
+  ];
+  document.getElementById('sort-controls').innerHTML =
+    '<label>Sort:</label>' +
+    sortOptions.map(o=>
+      `<button class="sort-pill${tableSort===o.key?' active':''}" onclick="tableSort='${o.key}';renderWardTable()">${o.label}</button>`
+    ).join('');
+}
+
 function renderWardTable() {
   if(!currentWard) return;
   const search = (document.getElementById('ward-search').value||'').toLowerCase();
   let txs = wardTxs(currentWard);
   if(wardFilter!=='All') txs=txs.filter(t=>t.fund_type===wardFilter);
-  if(search) txs=txs.filter(t=>t.vendor.toLowerCase().includes(search)||(t.description||'').toLowerCase().includes(search));
-  txs=[...txs].sort((a,b)=>b.date.localeCompare(a.date));
+  if(search) txs=txs.filter(t=>(t.vendor||'').toLowerCase().includes(search)||(t.description||'').toLowerCase().includes(search));
+  // Apply sort
+  txs = [...txs];
+  if      (tableSort==='date-desc')  txs.sort((a,b)=>b.date.localeCompare(a.date));
+  else if (tableSort==='date-asc')   txs.sort((a,b)=>a.date.localeCompare(b.date));
+  else if (tableSort==='vendor-az')  txs.sort((a,b)=>(a.vendor||'').localeCompare(b.vendor||''));
+  else if (tableSort==='amount-asc') txs.sort((a,b)=>a.amount-b.amount);
+  else if (tableSort==='amount-desc')txs.sort((a,b)=>b.amount-a.amount);
+  renderSortControls();
   
   const fc = f=>'fund-'+f.replace(/[^a-zA-Z]/g,'');
   document.getElementById('ward-table-body').innerHTML = txs.map(t=>{
@@ -597,7 +671,7 @@ function openVendorModal(vendor) {
 function closeModal(){ document.getElementById('vendorModal').classList.remove('open'); }
 
 // ─── INIT ─────────────────────────────────────────────────
-showOverview();
+routeFromHash();
 </script>
 </body>
 </html>
